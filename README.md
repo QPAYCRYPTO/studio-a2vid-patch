@@ -30,7 +30,7 @@ Sampling 119 frames in 2 windows, at 720x1280 with 4 steps
 노드 328에서 출력 비디오 발견                        <-- yanlış seçim
 ```
 
-## Yama
+## Yama 1 — çıktı düğümü
 
 Çıktı seçimi şu sıraya geçti:
 
@@ -51,3 +51,26 @@ Bu yüzden RunPod Serverless endpoint'inin konteyner komutu, worker açılırken
 bu dosyayı `/handler.py` üzerine indirecek şekilde ayarlanmıştır. İndirme
 başarısız olursa worker **bilinçli olarak** hata verir — sessizce yanlış
 (ara) videoyu döndürmesindense görünür şekilde durması tercih edilmiştir.
+
+## Yama 2 — opsiyonel kalite parametreleri
+
+Orijinal `handler.py` iş girdisinden yalnızca `image`, `audio`, `prompt`,
+`width`, `height`, `max_frame`, `force_offload` alıyordu. İş akışındaki kalite
+kolları sabit kalıyordu:
+
+| Düğüm sınıfı | Alan | İş akışı varsayılanı |
+|---|---|---|
+| `WanVideoSchedulerv2` | `steps`, `shift` | 4, 5 |
+| `WanVideoSamplerv2` | `cfg`, `seed` | 1, **42 (sabit)** |
+| `MultiTalkWav2VecEmbeds` | `audio_scale`, `audio_cfg_scale` | 1, 1 |
+| `WanVideoImageToVideoEncode` | `noise_aug_strength`, `start_latent_strength` | 0, 1 |
+| `WanVideoImageToVideoSkyreelsv3_audio` | `motion_frame`, `drop_frames` | 5, 12 |
+| `WanVideoBlockSwap` | `blocks_to_swap` | 30 |
+
+Bu alanlar artık iş girdisinden **opsiyonel** olarak geçilebiliyor. Gönderilmeyen
+alan değişmez; bilinmeyen alanlar yok sayılır. Düğüm kimlikleri sabit
+kodlanmaz, `class_type` üzerinden bulunur. Uygulanan değerler `[STUDIO] kalite
+parametreleri: ...` satırıyla loglanır.
+
+Not: `seed` iş akışında 42'ye gömülüydü; yani worker belirlenimciydi ama seed
+kontrol edilemiyordu. Artık her klip için seed gönderilebiliyor.

@@ -3,7 +3,10 @@
 # Kaynak: https://github.com/wlsdml1114/Infinitetalk_Runpod_hub
 #   ref: skyreelsV3_v0.7_blackwell
 #
-# TEK DEGISIKLIK: cikti videosu secimi. Orijinal kod ComfyUI gecmisindeki
+# DEGISIKLIKLER: (1) cikti videosu secimi, (2) opsiyonel kalite
+# parametrelerinin is girdisinden is akisina gecirilmesi.
+#
+# (1) cikti videosu secimi. Orijinal kod ComfyUI gecmisindeki
 # ilk bos olmayan cikti dugumunu aliyordu; iki asamali SkyReels V3 A2V is
 # akisinda bu, 81 karelik SESSIZ ara videoydu. Yama, nihai sesli videoyu
 # ("-audio.mp4") tercih eder. Ayrinti icin README.
@@ -375,6 +378,39 @@ def handler(job):
     prompt["246"]["inputs"]["value"] = height
 
     prompt["270"]["inputs"]["value"] = max_frame
+
+    # --- STUDIO YAMASI: kalite parametreleri ---------------------------
+    # Is akisindaki kalite kollari orijinal handler'da sabit kaliyordu
+    # (steps=4, shift=5, noise_aug_strength=0, motion_frame=5, seed=42).
+    # Artik is girdisinden OPSIYONEL olarak gecilebilir. Dugum kimlikleri
+    # sabit kodlanmaz; class_type uzerinden bulunur.
+    QUALITY_MAP = {
+        "WanVideoSchedulerv2": ("steps", "shift"),
+        "WanVideoSamplerv2": ("cfg", "seed"),
+        "MultiTalkWav2VecEmbeds": ("audio_scale", "audio_cfg_scale"),
+        "WanVideoImageToVideoEncode": ("noise_aug_strength", "start_latent_strength"),
+        "WanVideoImageToVideoSkyreelsv3_audio": ("motion_frame", "drop_frames"),
+        "WanVideoBlockSwap": ("blocks_to_swap",),
+    }
+    applied = []
+    for node_id, node_data in prompt.items():
+        if not isinstance(node_data, dict):
+            continue
+        fields = QUALITY_MAP.get(node_data.get("class_type"))
+        if not fields:
+            continue
+        for field in fields:
+            if field not in job_input:
+                continue
+            if field not in node_data.get("inputs", {}):
+                continue
+            value = job_input[field]
+            node_data["inputs"][field] = value
+            applied.append(f"{node_id}.{field}={value}")
+    if applied:
+        logger.info(f"[STUDIO] kalite parametreleri: {', '.join(applied)}")
+    else:
+        logger.info("[STUDIO] kalite parametresi gonderilmedi, is akisi varsayilanlari")
 
     ws_url = f"ws://{server_address}:8188/ws?clientId={client_id}"
     logger.info(f"Connecting to WebSocket: {ws_url}")
